@@ -1,0 +1,4 @@
+NOTES_*
+examples/buggy
+examples/falsenegatives/misaligned
+examples/falsenegatives/structoverflow
