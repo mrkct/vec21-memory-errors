@@ -23,34 +23,6 @@ Materiale e slide qui: https://github.com/mrkct/vec21-memory-errors
 
 ---
 
-# Il problema
-
-- Nei casi migliori errori del genere comportano uno spreco di memoria
-- Nei casi peggiori aprono le porte a gravi falle di sicurezza
-- Gli errori che si possono fare sono molti:
-    - Buffer overflow
-    - Use after free
-    - Memory leak
-    - Double free
-    - Invalid free
-    - Mismatched free
-    - ...e molti altri
-
----
-
-# Possibili soluzioni 
-
-La memory safety è un problema molto studiato e con tantissime proposte
-- Tool di analisi statica
-- Regole di programmazione per rendere più evidenti questi bug
-- Astrazioni sicure per evitare di dover gestire la memoria direttamente
-
-In questa presentazione guarderemo strumenti di **analisi dinamica**
-
-*Nessuna di queste proposte risolve al 100% questa classe di problemi!*
-
----
-
 # Analisi dinamica
 
 - Eseguiamo il programma e controlliamo che non faccia cose sbagliate a runtime
@@ -67,7 +39,7 @@ In questa presentazione vedremo due tool che **instrumentano** il codice binario
 Il codice macchina del programma viene modificato per introdurre degli hook che permettono al tool di analizzare il comportamento del programma
 
 - Nei programmi C per trovare i memory leak un esempio è sostituire l'implementazione delle funzioni di allocazione e deallocazione di memoria (`malloc`, `free` etc.) e controllare a fine programma se tutta la memoria è stata rilasciata
-- Questa instrumentazione ha spesso un **pesantissimo** costo in termini di performance ed uso di memoria, per questo non la teniamo attiva in produzione
+- L'instrumentazione ha spesso un **pesantissimo** costo in termini di performance ed uso di memoria, per questo non la teniamo attiva in produzione
 
 ---
 
@@ -86,7 +58,7 @@ La **shadow memory** è una zona di memoria usata per tenere metadati sulla memo
 
 - Un framework di binary instrumentation sulla quale sono stati costruiti diversi tool
 - Il più popolare tra questi tool è **MemCheck**
-- Disponibile solo su Linux e MacOs, ma esistono tool che funzionano con lo stesso approccio per Windows (Dr.Memory, gperftool)
+- Disponibile solo su Linux e MacOs, ma esistono tool che funzionano con lo stesso approccio per Windows (Dr.Memory)
 - Per eseguirlo: `valgrind --tool=memcheck ./programma arg1 arg2 ...`
 
 ---
@@ -97,16 +69,16 @@ La **shadow memory** è una zona di memoria usata per tenere metadati sulla memo
 2. A runtime questi blocchi vengono convertiti in un IR, modificato dal tool e ri-convertito in assembly
 3. Il codice risultante viene eseguito su una CPU virtuale per poterne monitorare il comportamento
 
-Aggiungere i simboli di debugging e disattivare alcune ottimizzazioni in fase di compilazione permette di avere log più belli, ma non è necessario
+Aggiungere i simboli di debugging e disattivare le ottimizzazioni in fase di compilazione permette di avere log più precisi, ma non è necessario
 
 ---
 
 # Shadow memory in Valgrind[4]
 
 Valgrind mantiene 3 metadati nella shadow memory:
-- **A**ddressability: Per ogni byte un bit che indica se quello è accessibile dall'utente o meno
-- **V**alidity: Per ogni bit un altro bit che indica se il bit è stato inizializzato dall'utente
-- Hash Blocks: Ogni blocco di heap allocato viene tracciato per individuare possibili memory leak
+- **A**ddressability: Indicano per ogni byte se è accessibile dal programma o meno
+- **V**alidity: Indicano per ogni bit se sono stati inizializzati dall'utente
+- Hash Blocks: Tracciano ogni blocco di memoria allocato dinamicamente
 
 Valgrind struttura la shadow memory come una tabella a più livelli, inizializzando i livelli più bassi solo quando avviene una write. 
 
@@ -122,18 +94,17 @@ Valgrind include una miriade di ottimizzazioni per velocizzare i casi più comun
 - Instrumentazione a compile time
 - Richiede il supporto del compilatore e linker, supportato da tutti i major compiler ormai
 
-    - `gcc programma.c -o programma -g -fsanitize=address`
-    - `clang++ -O1 -g -fsanitize=address -fno-omit-frame-pointer -c programma.c`
+    - `gcc programma.c -o programma -fsanitize=address -g`
+    - `clang programma.c -o programma -fsanitize=address -g -fno-omit-frame-pointer `
     - Da qualche mese è anche disponibile tra le opzioni in Visual Studio
 
-- Aggiungere i simboli di debugging e disattivare alcune ottimizzazioni permette di avere log più leggibili
+- Aggiungere i simboli di debugging e disattivare alcune ottimizzazioni permette di avere log più precisi
 
 ---
 
 # Come funziona AddressSanitizer
 - Attorno a tutte le zone di memoria allocate dinamicamente o sullo stack vengono aggiunte delle **redzones**, zone di memoria segnate come non utilizzabili nella shadow memory
 - Prima di ogni accesso in memoria viene controllata nella shadow memory se l'indirizzo è segnato come valido. Se non è così il programma viene arrestato e viene stampato un log
-- Blocchi di memoria allocati dinamicamente e liberati prima di essere riutilizzati passato un po' di tempo in una "quarantena"
 
 ---
 
@@ -142,10 +113,9 @@ Valgrind include una miriade di ottimizzazioni per velocizzare i casi più comun
 - Inizia ad un indirizzo prefissato in memoria supposto libero
 - Ogni byte nella shadow memory contiene le informazioni per un blocco di 8 byte
 - Il valore 0 indica che tutti gli 8 byte del blocco sono accessibili
-- Un valore compreso tra 1 e 8 indica quanti byte contigui a partire dall'inizio del blocco sono accessibili
+- Un valore compreso tra 1 e 7 indica quanti byte contigui a partire dall'inizio del blocco sono accessibili
 - I rimanenti valori sono utilizzati per indicare perchè non è accessibile la zona di memoria
     - 0xfd: Zona di heap recentemente rilasciata
-    - 0xf9: Redzone
 - Viene stampata una legenda quando troviamo un fault
 
 ---
@@ -168,22 +138,12 @@ Valgrind include una miriade di ottimizzazioni per velocizzare i casi più comun
 
 # Falsi negativi e positivi
 
-AddressSanitizer e Valgrind non riescono a trovare tutti i problemi 
-- Alcuni problemi non possono essere trovati automaticamente perchè tecnicamente sono operazioni valide in C
-    - Overflow in una struct per andare a scrivere su altri valori nella stessa struct
-- Altri problemi semplicemente sfuggono a questi tool
+AddressSanitizer e Valgrind non riescono a trovare tutti i problemi
+- Per alcuni problemi semplicemente non sono stati implementati i check
+- Altri problemi sono proprio difficili da trovare:
+    - E se sforassimo talmente tanto da un buffer che saltiamo le redzones e l'indirizzo in cui finiamo è un'altra zona di heap?
 
-Valgrind potrebbe segnalare dei falsi positivi per queste situazioni, AddressSanitizer preferisce stare zitto
-
----
-
-# Breve confronto tra AddressSanitizer e Memcheck
-
-- Valgrind è molto più lento di AddressSanitizer
-- Valgrind non trova out of bounds r/w sullo stack e sulle variabili globali, ASan può trovare entrambi
-- AddressSanitizer non trova letture a dati non inizializzati, Valgrind sì
-- AddressSanitizer arresta il programma al primo fault trovato, Valgrind continua l'esecuzione
-- Se un errore avviene all'interno di una shared library* AddressSanitizer non può trovare l'errore, Valgrind invece sì
+In alcuni casi di indecisione Valgrind potrebbe segnalare dei falsi positivi (segnalandoci che non è certo), AddressSanitizer preferisce stare zitto
 
 ---
 
