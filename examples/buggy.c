@@ -19,7 +19,6 @@ struct Employee create_employee(const char *name, int age) {
 int main() {
     struct Employee employee = create_employee("Marco", 22);
     printf("%s %d\n", employee.name, employee.age);
-    // free(employee.name);
 
     employee = create_employee("Giovanni", 33);
     printf("%s %d\n", employee.name, employee.age);

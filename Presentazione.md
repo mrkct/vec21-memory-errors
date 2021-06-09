@@ -2,11 +2,13 @@
 marp: true
 ---
 
-# Testing e debugging per errori di memoria in programmi C e C++
+# Testing e debugging di errori di memoria in programmi C e C++
 
 #### Usando Valgrind Memcheck e AddressSanitizer
 
 ### Marco Cutecchia - 2021 - Verifica e Convalida
+
+Materiale e slide qui: https://github.com/mrkct/vec21-memory-errors
 
 ---
 
@@ -17,6 +19,7 @@ marp: true
 - Gestire la memoria correttamente è difficile però...
 
 * *["The Chromium project finds that around 70% of our serious security bugs are memory safety problems"](https://www.chromium.org/Home/chromium-security/memory-safety)*
+* *["~70% of the vulnerabilities Microsoft assigns a CVE each year continue to be memory safety issues"](https://msrc-blog.microsoft.com/2019/07/16/a-proactive-approach-to-more-secure-code/)*
 
 ---
 
@@ -44,7 +47,7 @@ La memory safety è un problema molto studiato e con tantissime proposte
 
 In questa presentazione guarderemo strumenti di **analisi dinamica**
 
-*Nessuna di queste soluzioni risolve al 100% questa classe di problemi!*
+*Nessuna di queste proposte risolve al 100% questa classe di problemi!*
 
 ---
 
